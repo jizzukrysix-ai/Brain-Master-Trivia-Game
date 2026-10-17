@@ -18,6 +18,7 @@
       --text: #f8fafc;
       --accent: #22c55e;
       --danger: #ef4444;
+      --warning: #f59e0b;
     }
 
     * {
@@ -34,7 +35,7 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      padding: 20px;
+      padding: 16px;
     }
 
     .container {
@@ -42,7 +43,7 @@
       max-width: 420px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
     .header {
@@ -50,28 +51,59 @@
       justify-content: space-between;
       align-items: center;
       background: var(--card-bg);
-      padding: 14px 20px;
+      padding: 12px 18px;
       border-radius: 12px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     }
 
     .stat-box {
-      font-size: 15px;
-      font-weight: 600;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    /* Progress bar */
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background-color: #334155;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.3s ease;
     }
 
     .card {
       background: var(--card-bg);
-      padding: 24px;
+      padding: 22px 18px;
       border-radius: 16px;
       text-align: center;
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
     }
 
+    .top-meta {
+      display: flex;
+      justify-content: space-between;
+      color: #94a3b8;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .timer-badge {
+      color: var(--warning);
+      font-weight: bold;
+    }
+
     .question {
-      font-size: 19px;
+      font-size: 18px;
+      font-weight: 600;
       margin-bottom: 20px;
       line-height: 1.4;
+      min-height: 50px;
     }
 
     .options-grid {
@@ -85,12 +117,12 @@
       color: var(--text);
       border: 1px solid #475569;
       padding: 14px;
-      border-radius: 10px;
-      font-size: 16px;
+      border-radius: 12px;
+      font-size: 15px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s ease;
-      outline: none;
+      text-align: left;
     }
 
     .btn:active {
@@ -98,15 +130,15 @@
     }
 
     .btn.correct {
-      background-color: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
+      background-color: var(--accent) !important;
+      border-color: var(--accent) !important;
+      color: #fff !important;
     }
 
     .btn.wrong {
-      background-color: var(--danger);
-      border-color: var(--danger);
-      color: #fff;
+      background-color: var(--danger) !important;
+      border-color: var(--danger) !important;
+      color: #fff !important;
     }
 
     .ad-btn {
@@ -114,15 +146,17 @@
       color: #fff;
       border: none;
       padding: 14px;
-      border-radius: 10px;
+      border-radius: 12px;
       font-weight: bold;
       margin-top: 15px;
       display: none;
+      text-align: center;
+      width: 100%;
     }
 
     .status-text {
-      font-size: 14px;
-      margin-top: 10px;
+      font-size: 13px;
+      margin-top: 14px;
       color: #94a3b8;
     }
   </style>
@@ -135,42 +169,85 @@
       <div class="stat-box">Lives: <span id="lives" style="color: var(--danger);">❤️❤️❤️</span></div>
     </div>
 
+    <!-- Progress Indicator -->
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progress-bar"></div>
+    </div>
+
     <div class="card" id="game-card">
+      <div class="top-meta">
+        <span id="q-counter">Question 1/10</span>
+        <span class="timer-badge">⏳ <span id="timer">15</span>s</span>
+      </div>
+
       <div class="question" id="question-text">Loading question...</div>
       <div class="options-grid" id="options-box"></div>
       
-      <!-- Optional Rewarded Ad Button: Basic utility works fine without it -->
+      <!-- Optional Rewarded Ad Button -->
       <button class="btn ad-btn" id="revive-btn" onclick="showRewardAd()">
         📺 Watch Ad to Get +1 Life
       </button>
       
-      <div class="status-text" id="status-msg">Answer quickly to test your knowledge!</div>
+      <div class="status-text" id="status-msg">Choose the correct answer before time runs out!</div>
     </div>
   </div>
 
   <script>
-    // 1. Initialize Telegram WebApp
+    // 1. Safe Telegram WebApp Initialization
     const tg = window.Telegram?.WebApp;
     if (tg) {
-      tg.ready();
-      tg.expand();
+      try {
+        tg.ready();
+        tg.expand();
+      } catch (e) {
+        console.log("Telegram SDK not active in browser");
+      }
     }
 
-    // 2. Initialize AdsGram Block (Replace with your actual Block ID when accepted)
-    // Testing mode is enabled by default so it never crashes!
-    const AdController = window.Adsgram ? window.Adsgram.init({ blockId: "YOUR_BLOCK_ID_HERE" }) : null;
+    // 2. Safe AdsGram Initialization with error handling
+    let AdController = null;
+    try {
+      if (window.Adsgram) {
+        // Adsgram ID ലഭിക്കുമ്പോൾ "YOUR_BLOCK_ID_HERE" മാറ്റി നൽകുക
+        AdController = window.Adsgram.init({ blockId: "int-0000" });
+      }
+    } catch (e) {
+      console.warn("Adsgram is running in safe mode:", e);
+    }
 
+    // 3. Quiz Questions Database
     const quizData = [
-      { q: "What is the capital of France?", opt: ["Berlin", "Paris", "Rome", "Madrid"], ans: 1 },
+      { q: "What is the capital city of France?", opt: ["Berlin", "Paris", "Rome", "Madrid"], ans: 1 },
       { q: "Which planet is known as the Red Planet?", opt: ["Earth", "Mars", "Jupiter", "Venus"], ans: 1 },
-      { q: "What is the fastest land animal?", opt: ["Cheetah", "Lion", "Falcon", "Horse"], ans: 0 },
-      { q: "Which element has the chemical symbol 'O'?", opt: ["Gold", "Oxygen", "Osmium", "Iron"], ans: 1 },
-      { q: "Which ocean is the largest on Earth?", opt: ["Atlantic", "Indian", "Pacific", "Arctic"], ans: 2 }
+      { q: "What is the fastest land animal in the world?", opt: ["Cheetah", "Lion", "Falcon", "Horse"], ans: 0 },
+      { q: "Which element has the chemical symbol 'O'?", opt: ["Gold", "Oxygen", "Iron", "Silver"], ans: 1 },
+      { q: "Which ocean is the largest on Earth?", opt: ["Atlantic", "Indian", "Pacific", "Arctic"], ans: 2 },
+      { q: "How many continents are there on Earth?", opt: ["5", "6", "7", "8"], ans: 2 },
+      { q: "Who painted the Mona Lisa?", opt: ["Van Gogh", "Picasso", "Leonardo da Vinci", "Michelangelo"], ans: 2 },
+      { q: "Which is the smallest country in the world?", opt: ["Monaco", "Vatican City", "Maldives", "Malta"], ans: 1 },
+      { q: "What is the hardest natural substance on Earth?", opt: ["Diamond", "Gold", "Iron", "Platinum"], ans: 0 },
+      { q: "Which country is the home of the Kangaroo?", opt: ["Australia", "South Africa", "Brazil", "India"], ans: 0 }
     ];
 
     let currentQuestion = 0;
     let score = 0;
     let lives = 3;
+    let timeLeft = 15;
+    let timerInterval = null;
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = 15;
+      document.getElementById("timer").innerText = timeLeft;
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timer").innerText = timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          handleTimeOut();
+        }
+      }, 1000);
+    }
 
     function renderQuestion() {
       if (lives <= 0) {
@@ -178,23 +255,30 @@
         return;
       }
 
+      startTimer();
       const q = quizData[currentQuestion];
+      
+      // Update UI texts
       document.getElementById("question-text").innerText = q.q;
+      document.getElementById("q-counter").innerText = `Question ${currentQuestion + 1}/${quizData.length}`;
+      document.getElementById("progress-bar").style.width = `${((currentQuestion + 1) / quizData.length) * 100}%`;
+      
       const optContainer = document.getElementById("options-box");
       optContainer.innerHTML = "";
       document.getElementById("revive-btn").style.display = "none";
-      document.getElementById("status-msg").innerText = "Choose the correct option";
+      document.getElementById("status-msg").innerText = "Select an option!";
 
       q.opt.forEach((option, index) => {
         const btn = document.createElement("button");
         btn.className = "btn";
-        btn.innerText = option;
+        btn.innerText = `${String.fromCharCode(65 + index)}.  ${option}`;
         btn.onclick = () => checkAnswer(index, btn);
         optContainer.appendChild(btn);
       });
     }
 
     function checkAnswer(selected, buttonElement) {
+      clearInterval(timerInterval);
       const q = quizData[currentQuestion];
       const buttons = document.querySelectorAll("#options-box .btn");
       buttons.forEach(b => b.disabled = true);
@@ -203,19 +287,44 @@
         buttonElement.classList.add("correct");
         score += 10;
         document.getElementById("score").innerText = score;
-        document.getElementById("status-msg").innerText = "Correct! +10 Points";
+        document.getElementById("status-msg").innerText = "🎉 Correct answer! +10 Points";
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
       } else {
         buttonElement.classList.add("wrong");
         buttons[q.ans].classList.add("correct");
         lives -= 1;
         updateLives();
-        document.getElementById("status-msg").innerText = "Wrong answer!";
+        document.getElementById("status-msg").innerText = "❌ Incorrect answer!";
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
       }
 
       setTimeout(() => {
-        currentQuestion = (currentQuestion + 1) % quizData.length;
+        nextQuestion();
+      }, 1300);
+    }
+
+    function handleTimeOut() {
+      const buttons = document.querySelectorAll("#options-box .btn");
+      buttons.forEach(b => b.disabled = true);
+      const q = quizData[currentQuestion];
+      buttons[q.ans].classList.add("correct");
+      
+      lives -= 1;
+      updateLives();
+      document.getElementById("status-msg").innerText = "⏰ Time's up!";
+      
+      setTimeout(() => {
+        nextQuestion();
+      }, 1300);
+    }
+
+    function nextQuestion() {
+      currentQuestion++;
+      if (currentQuestion >= quizData.length) {
+        showWinScreen();
+      } else {
         renderQuestion();
-      }, 1200);
+      }
     }
 
     function updateLives() {
@@ -225,53 +334,70 @@
     }
 
     function showGameOver() {
-      document.getElementById("question-text").innerText = "Game Over! You ran out of lives.";
+      clearInterval(timerInterval);
+      document.getElementById("question-text").innerText = "Game Over! You lost all lives.";
       document.getElementById("options-box").innerHTML = "";
-      document.getElementById("status-msg").innerText = "You can restart or watch an ad to get an extra life.";
+      document.getElementById("status-msg").innerText = "Watch an ad to get +1 extra life, or restart free.";
       
       const reviveBtn = document.getElementById("revive-btn");
       reviveBtn.style.display = "block";
 
       const restartBtn = document.createElement("button");
       restartBtn.className = "btn";
+      restartBtn.style.textAlign = "center";
       restartBtn.style.marginTop = "10px";
-      restartBtn.innerText = "🔄 Restart Game (Free)";
-      restartBtn.onclick = () => {
-        lives = 3;
-        score = 0;
-        currentQuestion = 0;
-        document.getElementById("score").innerText = "0";
-        updateLives();
-        renderQuestion();
-      };
+      restartBtn.innerText = "🔄 Restart Free";
+      restartBtn.onclick = resetGame;
       document.getElementById("options-box").appendChild(restartBtn);
     }
 
-    // Adsgram Trigger Function
+    function showWinScreen() {
+      clearInterval(timerInterval);
+      document.getElementById("question-text").innerText = `🏆 Completed! Final Score: ${score}`;
+      document.getElementById("options-box").innerHTML = "";
+      document.getElementById("status-msg").innerText = "Great job! You finished all questions.";
+      
+      const restartBtn = document.createElement("button");
+      restartBtn.className = "btn";
+      restartBtn.style.textAlign = "center";
+      restartBtn.innerText = "🎮 Play Again";
+      restartBtn.onclick = resetGame;
+      document.getElementById("options-box").appendChild(restartBtn);
+    }
+
+    function resetGame() {
+      lives = 3;
+      score = 0;
+      currentQuestion = 0;
+      document.getElementById("score").innerText = "0";
+      updateLives();
+      renderQuestion();
+    }
+
+    // Rewarded Ad handler
     function showRewardAd() {
       if (AdController) {
-        AdController.show().then((result) => {
-          // User finished watching the rewarded ad
-          lives += 1;
+        AdController.show().then(() => {
+          lives = 1;
           updateLives();
           renderQuestion();
-        }).catch((err) => {
-          // Fallback if ad failed to load (or in development test)
-          console.log("Ad status:", err);
-          lives += 1;
+        }).catch(() => {
+          // Fallback if ad is still in review/test mode
+          lives = 1;
           updateLives();
           renderQuestion();
         });
       } else {
-        // Fallback if SDK hasn't loaded
-        lives += 1;
+        lives = 1;
         updateLives();
         renderQuestion();
       }
     }
 
-    // Initial Start
-    renderQuestion();
+    // Start on DOM ready
+    window.addEventListener("DOMContentLoaded", () => {
+      renderQuestion();
+    });
   </script>
 </body>
 </html>
